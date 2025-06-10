@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中医提问演示</title>
+    <style>
+        /* --- 全局和基础样式 (移动端优先) --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f7f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 25px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            font-size: 1.5em;
+            margin-bottom: 25px;
+        }
+
+        .question-box {
+            background-color: #eaf2f8;
+            border-left: 5px solid #3498db;
+            padding: 15px 20px;
+            margin-bottom: 30px;
+            border-radius: 5px;
+        }
+
+        .question-box p {
+            margin: 0;
+            font-size: 1.1em;
+            color: #2c3e50;
+        }
+
+        /* --- 选项按钮样式 --- */
+        .options-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* 按钮之间的间距 */
+        }
+
+        .prompt-btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            text-align: left;
+            transition: background-color 0.3s, transform 0.2s;
+            width: 100%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .prompt-btn:hover {
+            background-color: #2980b9;
+        }
+
+        .prompt-btn:active {
+            transform: scale(0.98);
+        }
+
+        .prompt-btn.good-prompt {
+            background-color: #27ae60;
+        }
+
+        .prompt-btn.good-prompt:hover {
+            background-color: #229954;
+        }
+
+        .prompt-btn strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+
+        .prompt-btn span {
+            font-size: 0.9em;
+            opacity: 0.9;
+            line-height: 1.4;
+        }
+
+        /* --- 加载和响应区域 --- */
+        .response-container {
+            margin-top: 30px;
+            border-top: 1px solid #e0e0e0;
+            padding-top: 20px;
+        }
+
+        #loader {
+            display: none; /* 默认隐藏 */
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #3498db;
+            animation: spin 1s ease infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #response-content {
+            background-color: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            white-space: pre-wrap; /* 保持换行和空格 */
+            word-wrap: break-word; /* 长单词自动换行 */
+            line-height: 1.6;
+            min-height: 50px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        /* --- 响应式设计 (PC端) --- */
+        @media (min-width: 768px) {
+            .container {
+                padding: 40px;
+            }
+            h1 {
+                font-size: 2em;
+            }
+            .options-container {
+                flex-direction: row; /* 在大屏幕上并排显示 */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>中医提问效果演示</h1>
+
+        <div class="question-box">
+            <p>现在假设您要了解一下颤振病的中医机制，您要如何提问呢？</p>
+        </div>
+
+        <div class="options-container">
+            <button class="prompt-btn" id="bad-prompt-btn">
+                <strong>方式一：随意提问</strong>
+
+            </button>
+            <button class="prompt-btn good-prompt" id="good-prompt-btn">
+                <strong>方式二：利用提示词工程</strong>
+            </button>
+        </div>
+
+        <div class="response-container">
+            <div id="loader">
+                <div class="spinner"></div>
+                <p>正在请求AI，请稍候...</p>
+            </div>
+            <pre id="response-content">AI的回答将显示在这里...</pre>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const badPromptBtn = document.getElementById('bad-prompt-btn');
+            const goodPromptBtn = document.getElementById('good-prompt-btn');
+            const responseContent = document.getElementById('response-content');
+            const loader = document.getElementById('loader');
+
+            // 定义两个提示词
+            const prompts = {
+                bad: `颤振病的中医机制是啥？`,
+                good: `# 角色
+你是一名资深的中医理论研究者和科普作家。
+
+# 目标
+你的任务是为一群对中医感兴趣但没有专业背景的读者，清晰地、系统地解释“颤振病”（西医常说的帕金森病）在中医理论中的核心病因病机。
+
+# 背景与约束
+- 请重点围绕中医“肝、脾、肾”三脏功能失调，以及“风、火、痰、瘀”等病理产物如何导致颤振进行阐述。
+- 你的解释需要有逻辑层次，可以分点论述，例如，先讲脏腑亏虚的“本”，再讲病理产物的“标”。
+- 语言应力求通俗易懂，如果必须使用专业术语（如“肝风内动”、“痰热动风”），请务必用生活化的比喻或简短的解释加以说明。
+- 最终的回答应该是结构清晰、内容全面、适合初学者的科普文章。
+
+# 输出格式
+请以Markdown格式输出，使用标题和列表来组织内容，使其更具可读性。`
+            };
+
+            // 为按钮添加点击事件
+            badPromptBtn.addEventListener('click', () => {
+                fetchAIResponse(prompts.bad);
+            });
+
+            goodPromptBtn.addEventListener('click', () => {
+                fetchAIResponse(prompts.good);
+            });
+
+            async function fetchAIResponse(promptText) {
+                // 禁用按钮，防止重复点击
+                badPromptBtn.disabled = true;
+                goodPromptBtn.disabled = true;
+
+                // 显示加载动画，清空上次内容
+                loader.style.display = 'block';
+                responseContent.textContent = '正在生成回答...';
+                responseContent.style.display = 'none';
+
+                try {
+                    // 后端API的地址
+                    const api_url = '/api/ask'; // 使用相对路径
+
+                    const response = await fetch(api_url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ prompt: promptText })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP错误! 状态: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+
+                    // 显示AI的回答
+                    responseContent.textContent = data.response;
+
+                } catch (error) {
+                    console.error('请求AI时出错:', error);
+                    responseContent.textContent = `加载失败，请检查后端服务是否正常运行，或查看控制台错误信息。\n\n错误详情: ${error.message}`;
+                } finally {
+                    // 隐藏加载动画
+                    loader.style.display = 'none';
+                    responseContent.style.display = 'block';
+
+                    // 重新启用按钮
+                    badPromptBtn.disabled = false;
+                    goodPromptBtn.disabled = false;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
